@@ -1,0 +1,21 @@
+<style>
+    .grid-container {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr); /* Two columns */
+        grid-gap: 20px; /* Gap between grid items */
+    }
+    .grid-item {
+        background-color: #f0f0f0;
+        padding: 20px;
+    }
+</style>
+
+<div class="grid-container">
+    {{#each images}}
+    <div class="grid-item">
+       <h2>{{this.title}}</h2>
+       <img src="{{this.url}}" alt="{{this.alt}}">
+    </div>
+    {{/each}}
+</div>
+

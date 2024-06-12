@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+
+    <!--- basic page needs
+    ================================================== -->
+    <meta charset="utf-8">
+    <title>Phylonoe</title>
+    <meta name="description" content="genomics">
+    <meta name="author" content="">
+
+    <!-- mobile specific metas
+    ================================================== -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- CSS
+	 ================================================== -->
+    <link rel="stylesheet" href="assets/output.css">
+    <link rel="stylesheet" href="style.css">
+
+    <!-- script
+	 ================================================== -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/MotionPathPlugin.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ScrollMagic/2.0.7/ScrollMagic.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ScrollMagic/2.0.7/plugins/animation.gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/parallax.js/1.4.2/parallax.min.js"></script>
+    <script src="https://kit.fontawesome.com/0430644f53.js" crossorigin="anonymous"></script>
+
+    <!-- favicons
+    ================================================== -->
+    <link rel="shortcut icon" href="temp/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="temp/favicon.ico" type="image/x-icon">
+    <style>
+      .parallax {
+	    background-image: url("assets/images/icons/matrix.jpg");
+	    min-width: 100%;
+	    min-height: 100%;
+	    background-attachment: fixed;
+	    background-position: center;
+	    background-repeat: no-repeat;
+	    background-size: cover;
+	}
+     </style>
+    
+</head>
+
+<body id="top">
+
+    <!-- header
+    ================================================== -->
+    <header class="s-header">
+        <div class="header-logo">
+          <a class="site-logo" href="#home">
+	    <img src="assets/phylonoePlogo_flat.png" alt="Homepage">
+	  </a>
+        </div> <!-- end header-logo -->
+ 
+        <nav class="header-nav">
+
+            <a href="#0" class="header-nav__close" title="close"><span>Close</span></a>
+
+            <div class="header-nav__content">
+                <h3>Phylonoe</h3>
+                
+                <ul class="header-nav__list">
+                  <li class="current"><a class="smoothscroll"  href="#home" title="home">Home</a></li>
+		    <li><a class="smoothscroll" href="#tools" title="tools">Tools</a></li>
+		    <li><a class="smoothscroll"  href="#community" title="community">Community</a><li>
+		    <li><a class="smoothscroll"  href="#community" title="learn">Learn</a><li>
+                    <li><a class="smoothscroll"  href="#community" title="contact">Contact</a></li>
+                </ul>
+    
+                <ul class="header-nav__social">
+                    <li>
+                        <a href="#0"><i class="fab fa-linkedin"></i></a>
+                    </li>
+                    <li>
+                        <a href="https://"><i class="fa-brands fa-square-x-twitter"></i></a>
+                    </li>
+                </ul>
+
+            </div> <!-- end header-nav__content -->
+
+        </nav> <!-- end header-nav -->
+
+        <a class="header-menu-toggle" href="#0">
+            <span class="header-menu-icon"></span>
+        </a>
+
+    </header> <!-- end s-header -->
+    <!-- home
+    ================================================== -->
+    <section id="home" class="s-home target-section">
+  
+  <!--      <div class="shadow-overlay"></div> -->
+  <!-- Image by PIRO4D from Pixabay</a> -->
+<div class="parallax">
+<div class="home-content">
+  <div class="row home-content__main">
+    <p></p><p></p><p></p><br><br><br>
+                <h1>Phylonoe</h1>
+    <p>
+      Green building blocks for bioinformatics
+                </p>
+  </div> <!-- end home-content__main -->
+ </div> <!-- end home-content --></div>
+<ul class="home-sidelinks">
+            <li><a class="smoothscroll" href="#tools">Tools<span>bioinformatics tools - more soon</span></a></li>
+	    <li><a class="smoothscroll" href="#community">Community<span>join in</span></a></li>
+	    <li><a class="smoothscroll" href="#learn">Learn<span>tutorials - on the way</span></a></li>
+            <li><a class="smoothscroll" href="#community">Contact<span>get in touch</span></a></li>
+        </ul> <!-- end home-sidelinks -->
+ <ul class="home-social">
+            <li class="home-social-title">Follow Us</li>
+            <li><a href="https://twitter.com/seqanalysis">
+               <i class="fa-brands fa-square-x-twitter"></i>
+                <span class="home-social-text"> @SeqAnalysis</i></span>
+            </a></li>
+	    <li><a href="https://twitter.com/lisa_crossman">
+		<i class="fa-brands fa-square-x-twitter"></i>
+		<span class="home-social-text"> @lisa_crossman</i></span>
+	    </a></li>
+            <li><a href="https://www.linkedin.com/in/lisa-crossman-94336469/">
+                <i class="fab fa-linkedin"></i>
+                <span class="home-social-text">LinkedIn </span>
+            </a></li>
+        </ul> <!-- end home-social -->
+        <a href="#about" class="home-scroll smoothscroll">
+            <span class="home-scroll__text">Scroll Down</span>
+            <span class="home-scroll__icon"></span>
+        </a> <!-- end home-scroll -->
+    </section>
+    <!-- services
+	 ================================================== -->   
+    <section id='tools' class="s-services light-gray">  
+      <div class="row services-list block-1-2 block-m-1-2 block-tab-full">
+	<form id="toplevel" action="/toplevel" enctype="multipart/form-data" method="post">
+	  <input type="hidden" name="button" value="button1">
+            <div class="col-block service-item " data-aos="fade-up" onclick="document.getElementById('toplevel').submit();" style="cursor: pointer;">
+		<div class="my-2 mx-auto p-relative bg-white shadow-1 blue-hover" style="overflow: hidden; border-radius: 1px;">
+  <div class="px-2 py-2">
+    <p class="mb-0 small font-weight-medium text-uppercase mb-1 text-muted lts-2px">
+      Application
+    </p>
+    <h4 class="ff-serif font-weight-normal text-black card-heading mt-0 mb-1" style="line-height: 1.25;">
+      Amplify specific regions
+    </h4>
+    <p class="mb-1">
+      <i>In silico</i> PCR from your provided genome and primer sequences
+    </p>
+  </div></form>
+  <a href="#0" class="text-uppercase d-inline-block font-weight-medium lts-2px ml-2 mb-2 text-center styled-link">
+    Start here
+  </a>
+</div>
+        </div>
+	<form id="nextlevel" action="/nextlevel" enctype="multipart/form-data" method="post">
+	  <input type="hidden" name="button" value="button2">
+            <div class="col-block service-item" data-aos="fade-up" onclick="document.getElementById('nextlevel').submit();" style="cursor: pointer;">
+		<div class="my-2 mx-auto p-relative bg-white shadow-1 blue-hover" style="overflow: hidden; border-radius: 1px;">
+  <div class="px-2 py-2">
+    <p class="mb-0 small font-weight-medium text-uppercase mb-1 text-muted lts-2px">
+      Application
+    </p>
+    <h4 class="ff-serif font-weight-normal text-black card-heading mt-0 mb-1" style="line-height: 1.25;">
+      Machine learning & Deep Learning
+    </h4>
+    <p class="mb-1">
+      Biomarker discovery from genome & class label inputs
+    </p>
+  </div></form>
+  <a href="#0" class="text-uppercase d-inline-block font-weight-medium lts-2px ml-2 mb-2 text-center styled-link">
+    Start here
+  </a>
+</div>
+            </div>
+        </div> <!-- end services-list -->
+          
+</section> <!-- end s-home -->
+    <!-- contact
+    ================================================== -->
+    <section id="community" class="s-contact">
+
+        <div class="row section-header" data-aos="fade-up">
+            <div class="col-full">
+                <h3 class="subhead subhead--light">Contact Us</h3>
+            </div>
+        </div> <!-- end section-header -->
+        <div class="row">
+            <div class="col-full contact-main" data-aos="fade-up">
+                <p>
+                <a href="&#105;&#110;&#102;&#111;&#64;&#112;&#104;&#121;&#108;&#111;&#110;&#111;&#101;&#46;&#99;&#111;&#109;
+" class="contact-email">&#105;&#110;&#102;&#111;&#64;&#112;&#104;&#121;&#108;&#111;&#110;&#111;&#101;&#46;&#99;&#111;&#109;</a>
+                </p>
+            </div> <!-- end contact-main -->
+
+        </div> <!-- end row -->
+
+        <div class="row">
+
+            <div class="col-five tab-full contact-secondary" data-aos="fade-up">
+                <h3 class="subhead subhead--light">Where To Find Us</h3>
+
+                <p class="contact-address">
+                    Norwich Research Park<br>
+                    Norwich, UK<br>
+                </p>
+            </div> <!-- end contact-secondary -->
+           
+            <div class="col-five tab-full contact-secondary" data-aos="fade-up">
+                <h3 class="subhead subhead--light">Follow Us</h3>
+
+                <ul class="contact-social">
+                    <li>
+                        <a href="https://twitter.com/seqanalysis">@SeqAnalysis  <i class="fa-brands fa-square-x-twitter"></i></a>
+                    </li>
+                    <li>
+                        <a href="https://twitter.com/lisa_crossman">@lisa_crossman  <i class="fa-brands fa-square-x-twitter"></i></a>
+                    </li>
+		    <li>
+                        <a href="https://www.linkedin.com/in/lisa-crossman-94336469/?originalSubdomain=uk"><i class="fab fa-linkedin"></i></a>
+                    </li>
+                </ul> <!-- end contact-social -->
+            </div> <!-- end contact-secondary -->
+
+        </div> <!-- end row -->
+        <div class="row">
+            <div class="col-full cl-copyright">
+                <span><!-- Link back to Colorlib can't be removed. Template is licensed under CC BY 3.0. -->
+Copyright &copy;<script>document.write(new Date().getFullYear());</script> All rights reserved | This template is made by <a href="https://colorlib.com" target="_blank">Colorlib & Lisa Crossman</a>
+<!-- Link back to Colorlib can't be removed. Template is licensed under CC BY 3.0. --></span> 
+            </div>
+        </div>
+
+        <div class="cl-go-top">
+            <a class="smoothscroll" title="Back to Top" href="#top"><i class="images/icons/arrow-up-solid-white.svg" aria-hidden="true"></i></a>
+        </div>
+
+    </section> <!-- end s-contact -->
+    <script>
+	$(function fly() { // wait for document ready
+		var flightpath = {
+			entry : {
+				curviness: 0.25,
+				autoRotate: true,
+				path: [
+						{x: 10,	y: -20},
+						{x: 150,y: 0}
+					]},
+			looping : {
+				curviness: 1.25,
+				autoRotate: true,
+				path: [
+						{x: 255,	y: 0},
+						{x: 320,	y: -20},
+						{x: 400,	y: -40},
+						{x: 280,	y: 20},
+						{x: 400,	y: 50},
+						{x: 480,	y: 20},
+						{x: 520,	y: 15}
+					]},
+			leave : {
+				curviness: 0.25,
+				autoRotate: true,
+				path: [
+						{x: 560,	y: 20},
+						{x: 600,	y: 40},
+						{x: $(window).width() + 300,	y: 0},
+					]}};
+		// init controller
+		// init controller
+		var controller = new ScrollMagic.Controller();
+
+		// create tween
+	    var tween = gsap.timeline()
+			.add(gsap.to($("#plane"), 1.2, {css:{motionPath:flightpath.entry}, ease:Power1.inOut}))
+			.add(gsap.to($("#plane"), 2, {css:{motionPath:flightpath.looping}, ease:Power1.inOut}))
+			.add(gsap.to($("#plane"), 1, {css:{motionPath:flightpath.leave}, ease:Power1.inOut}));
+
+		// build scene
+		var scene = new ScrollMagic.Scene({triggerElement: "#trigger", duration: 800, offset: 20})
+	                                        .setPin("#target", {pushFollowers: false})
+						.setTween(tween)
+		                                .addTo(controller);
+	})
+    </script>
+    
+    <script src="assets/js/main.js"></script>
+      <script>
+    // JavaScript code for triggering the shuffle animation
+      document.addEventListener('DOMContentLoaded', function() {
+      document.querySelector('.puzzle-background').classList.add('shuffling');
+    });
+  </script>
+    
+</body>
+</html>

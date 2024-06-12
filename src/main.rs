@@ -1,0 +1,625 @@
+#[macro_use] extern crate rocket;
+extern crate rocket_dyn_templates;
+mod InSilicoPCR;
+mod paste_id;
+
+use std::env;
+use bio::io::fasta::Reader;
+use paste_id::PasteId;
+use sha256::try_digest;
+use InSilicoPCR::in_silico_pcr;
+use PJI::pji;
+use rocket::tokio::fs::File;
+use std::path::Path;
+use url::Url;
+use std::path::PathBuf;
+use tokio::io::BufWriter;
+use rocket::fs::NamedFile;
+use rocket::fs::FileName;
+use rocket::serde::Deserialize;
+use rocket::response::Redirect;
+use rocket::response::content;
+use rocket::http::uri::Absolute;
+use async_compression::tokio::bufread::GzipDecoder;
+use futures::executor::block_on;
+use rand::RngCore;
+use tokio::io::{self, BufReader};
+use std::io::{BufRead, Read, Cursor};
+use chacha20poly1305::ChaCha20Poly1305; 
+use chacha20poly1305::aead::NewAead;
+use chacha20poly1305::aead::stream::EncryptorBE32;
+use rocket::{catchers, get, http::Status, http::Method};
+use rand::rngs::OsRng;
+use anyhow::{Context, anyhow};
+use rocket::fs::relative;
+use rocket::http::Header;
+use rocket::response::status::NotFound;
+use rocket::tokio::fs::{self};
+use rocket::tokio::io::{AsyncReadExt, AsyncWriteExt, AsyncRead, AsyncWrite};
+use rocket::routes;
+use rocket::fs::TempFile;
+use rocket::form::{Form, FromForm};
+use rocket::{Request, Response};
+use reqwest;
+use std::collections::HashMap;
+use rocket::fairing::{Fairing, Info, Kind};
+use rocket_governor::{Quota, RocketGovernable, RocketGovernor};
+use rocket_governor::rocket_governor_catcher;
+use pyo3::Python;
+use rocket::serde::json::json;
+use rocket::serde::Serialize;
+use rocket::response::Responder;
+use rocket_dyn_templates::{Template,context};
+use rocket::http::ContentType;
+use pyo3::types::{PyTuple, PyDict, PyList, IntoPyDict};
+use pyo3::prelude::*;
+use pyo3::py_run;
+use tokio::fs::DirEntry;
+use clap::Parser;
+use handlebars::Handlebars;
+use rocket_dyn_templates::handlebars;
+
+use walkdir::WalkDir;
+use tokio_tar::Archive;
+
+
+pub struct CORS;
+
+#[derive(Debug, Deserialize)]
+struct Token {
+    challenge_ts: String,
+    hostname: String,
+    success: bool,
+    #[serde(default)]
+    error_codes: Vec<String>,
+}
+
+
+#[rocket::get("/")]
+fn keyfetch() -> String {
+   match env::var("RECAPTCHA_KEY") {
+       Ok(secret_key) => format!("{}", secret_key),
+       Err(_) => "Secret key not found".to_string(),
+       }
+}
+
+
+#[rocket::post("/verify_recaptcha", data="<token>")]
+async fn verify_recaptcha(token: String) -> Result<String, Status> {
+   //let secret_key = keyfetch();
+   let secret_key = "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe";
+   println!("just for now secret key is {:?}", secret_key);
+   if token == "" { return Err(Status::Unauthorized); };
+   let url = format!("https://www.google.com/recaptcha/api/siteverify?secret={}&response={}", secret_key, token);
+   println!("the url is {:?}", &url);
+   let response = reqwest::get(&url).await.map_err(|_| Status::InternalServerError)?;
+   match response.json::<Token>().await {
+      Ok(resp) => {
+             //let body: Value = resp.json().await.map_err(|_| Status::InternalServerError)?;
+	     println!("so resp success is {:?}", &resp.success);
+	     if resp.success {
+	         return Ok("Success".into());
+	         }
+             else {
+	         return Err(Status::Unauthorized);
+		 }
+             }
+      Err(err) => {
+             println!("Request failed: {}", err.to_string());
+	     return Err(Status::InternalServerError);
+	     }
+      }
+}
+
+
+#[rocket::async_trait]
+impl Fairing for CORS {
+  fn info(&self) -> Info {
+     Info {
+        name: "Add CORS headers to responses",
+	kind: Kind::Response,
+	}
+  }
+  async fn on_response<'r>(&self, request: &'r Request<'_>, response: &mut Response<'r>) {
+    let allowed_origins = "http://127.0.0.1:8000";
+    if request.method() == Method::Options {
+      response.set_status(Status::NoContent);
+      response.set_header(Header::new(
+         "Access-Control-Allow-Methods",
+	 "POST, GET, DELETE, OPTIONS",
+	 ));
+	 response.set_header(Header::new("Access-Control-Allow-Headers", "Content-Type"));
+	 }
+	 response.set_header(Header::new(
+	    "Access-Control-Allow-Origin",
+	    allowed_origins,
+	    ));
+	 response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+	 }
+}
+
+// In a real application, these would be retrieved dynamically from a config.
+const ID_LENGTH: usize = 4;
+const HOST: Absolute<'static> = uri!("http://127.0.0.1:8000");
+
+#[derive(FromForm)]
+#[derive(Debug)]
+struct FormData {
+   button: String,
+}
+
+#[rocket::post("/toplevel", data="<form_data>")]
+pub async fn toplevel(form_data: Form<FormData>) -> Redirect {
+    if form_data.button == "button1" {
+       Redirect::to("/assets/insilico.html")
+       }
+    else {
+       Redirect::to("assets/newnewbing.html")
+       }
+}
+
+#[derive(serde::Serialize)]
+struct Posting {
+    title: String,
+    alt: String,
+    image_path: String,
+}
+
+
+#[get("/static/<file..>")]
+pub async fn serveresults(file: PathBuf) -> Option<NamedFile> {
+    NamedFile::open(Path::new("static/").join(file)).await.ok()
+}
+
+#[rocket::get("/results/<uuid>")]
+pub async fn results(uuid: String) -> Result<Template, Status> {
+//pub async fn results(uuid: String) -> Template {
+    let mut context = HashMap::new();
+    let image_name1 = format!("static/images/{}_majority_vote_tree.svg", uuid).to_string();
+    println!("image_name1 is {:?}", image_name1);
+    let image_name2 = format!("static/images/{}_conf_matrix.png", uuid).to_string();
+    println!("image name2 is {:?}", image_name2);
+    let posts = vec![
+        Posting
+	   {
+	       title: "Majority Vote Tree".to_string(),
+	       alt: "Decision Tree Plot".to_string(),
+	       image_path: image_name1,
+	   },
+	Posting
+	   {
+	       title: "Confusion Matrix plot".to_string(),
+               alt: "Confusion Matrix".to_string(),
+	       image_path: image_name2,
+	   },
+	 ];
+     context.insert("posts", &posts);
+     Ok(Template::render("posts", &context))
+}
+
+
+#[rocket::post("/nextlevel", data="<form_data>")]
+pub async fn nextlevel(form_data: Form<FormData>) -> Redirect {
+    if form_data.button == "button2" {
+       Redirect::to("assets/ML.html")
+       }
+    else {
+       Redirect::to("assets/newnewbing.html")
+       }
+}
+
+
+#[derive(FromForm)]
+#[derive(Debug)]
+struct Pcrrequest<'f> {
+    seqfile: TempFile<'f>,
+    #[field(default = false)]
+    option_m: bool,
+    #[field(default = false)]
+    option_c: bool,
+    #[field(default = 3001)]
+    #[field(validate = range(40..3001))]
+    option_l: usize,
+    primers: TempFile<'f>,
+    recaptcha: String,
+}
+
+#[derive(FromForm)]
+#[derive(Debug, Deserialize)]
+struct MLBiomarkers {
+    #[field(default = "1.fofn,2.fofn,3.fofn,4.fofn")]
+    fofn_names: String,
+    #[field(default = "https://drive.google.com/drive/folders/1CHOsUT0HBC3c-e9lAyY0b8HFfOWTq4Kw?usp=sharing")]
+    gdrive_url: String,
+    #[field(default = "1,2,3,4")]
+    categories: String,
+    recaptcha: String,
+}
+
+pub struct RateLimitGuard;
+
+impl<'r> RocketGovernable<'r> for RateLimitGuard {
+    fn quota(_method: rocket_governor::Method, _route_name: &str) -> Quota {
+        Quota::per_second(Self::nonzero(1u32))
+    }
+}
+
+#[derive(Responder)]
+enum ErrorResponse {
+    #[response(status = 500, content_type = "json")]
+    A(String),
+}
+
+#[rocket::get("/")]
+pub async fn serve() -> Option<NamedFile> {
+    let path = Path::new(relative!("assets/newnewbing.html"));
+    NamedFile::open(path).await.ok()
+}
+
+#[get("/assets/<file..>")]
+pub async fn servefiles(file: PathBuf) -> Option<NamedFile> {
+    NamedFile::open(Path::new("assets/").join(file)).await.ok()
+}
+
+#[get("/route_example")]
+fn route_example(_limitguard: RocketGovernor<RateLimitGuard>) -> Status {
+    Status::Ok
+}
+
+#[rocket::get("/retrieve/<result>/<shasum>")]
+async fn retrieve(result: PathBuf, shasum: &str) -> Result<NamedFile, NotFound<String>> {
+    let path = Path::new(relative!("/")).join(&result);
+    let digest = try_digest(&path).unwrap();
+    if digest == shasum {
+           NamedFile::open(&path).await.map_err(|e| NotFound(e.to_string()))
+       } else {
+           NamedFile::open("").await.map_err(|e| NotFound(e.to_string()))
+       }
+}
+
+pub async fn encrypt_large_file(source_file: PathBuf, dist_file: PathBuf, k3: [u8; 32], n3: [u8; 7]) -> Result<(), anyhow::Error> {
+    let aead = ChaCha20Poly1305::new(k3.as_ref().into());
+    let mut stream_encryptor = EncryptorBE32::from_aead(aead, n3.as_ref().into());
+    const BUFFER_LEN: usize = 500;
+    let mut buffer = [0u8; BUFFER_LEN];
+    println!("source_file is {:?}", &source_file);
+    println!("dist files is {:?}", &dist_file);
+    let example_path = Path::new("upload/");
+    let mut source_file_name = example_path.join(source_file.file_name().unwrap());
+    println!("this source file is {:?}", &source_file_name);
+    
+    let mut source_file = File::open(&source_file_name).await.expect("source file not open");
+    let mut dist_file = File::create(dist_file).await.expect("destination file not created");
+    loop {
+       let read_count = source_file.read(&mut buffer).await?;
+       if read_count == BUFFER_LEN {
+          let ciphertext = stream_encryptor
+	     .encrypt_next(buffer.as_slice())
+	     .map_err(|err| anyhow!("Encrypting large file error {}", err)).unwrap();
+	  dist_file.write_all(&ciphertext).await?;
+       } else {
+          let ciphertext = stream_encryptor
+	     .encrypt_last(&buffer[..read_count])
+             .map_err(|err| anyhow!("Encrypting large file last slice error {}", err)).unwrap();
+	  dist_file.write_all(&ciphertext).await?;
+	  break;
+      }
+    }
+    //fs::remove_file(&source_file_name).await.expect(format!("unable to delete {:?}", &source_file_name).as_str());
+    Ok(())
+}
+
+#[rocket::post("/upload", data = "<Pcrrequest>")]
+async fn upload(mut Pcrrequest: Form<Pcrrequest<'_>>) -> Result<NamedFile, std::io::Error> {
+    let id1 = PasteId::new(ID_LENGTH);
+    let id2 = PasteId::new(ID_LENGTH);
+    let id3 = PasteId::new(ID_LENGTH);
+    let id4 = PasteId::new(ID_LENGTH);
+    let id5 = PasteId::new(ID_LENGTH);
+    let mut k2 = [0u8; 32];
+    OsRng.fill_bytes(&mut k2);
+    let mut n2 = [0u8; 7];
+    OsRng.fill_bytes(&mut n2);
+    let mut k3 = [0u8; 32];
+    OsRng.fill_bytes(&mut k3);
+    let mut n3 = [0u8; 7];
+    OsRng.fill_bytes(&mut n3);
+    println!("this is the recaptcha string {:?}", &Pcrrequest.recaptcha);
+    let token = &Pcrrequest.recaptcha;
+    let verify_token = verify_recaptcha(token.to_string());
+    println!("this is the verify token {:?}", &verify_token.await.unwrap());
+    Pcrrequest.seqfile.persist_to(id1.file_path()).await?;
+    encrypt_large_file(id1.file_path(), id5.file_path(), k2, n2).await.expect("issue with function");
+    fs::remove_file(id1.file_path()).await.expect(format!("unable to delete {:?}", id1.file_path().display()).as_str());
+    Pcrrequest.primers.persist_to(id2.file_path()).await?;
+    encrypt_large_file(id2.file_path(), id4.file_path(), k3, n3).await.expect("issue with second function");
+    fs::remove_file(id2.file_path()).await.expect(format!("unable to delete {:?}", id2.file_path().display()).as_str());
+    let result = in_silico_pcr(&id5.file_path(), Pcrrequest.option_m, Pcrrequest.option_c, Pcrrequest.option_l, &id4.file_path(), &k3, &n3, &k2, &n2, &id3.file_path());
+    let shasum = try_digest(id3.file_path()).unwrap();
+    let _finsy = retrieve(id3.file_path(),shasum.as_str());
+    fs::remove_file(id4.file_path()).await.expect(format!("unable to delete {:?}", id4.file_path().display()).as_str());
+    fs::remove_file(id5.file_path()).await.expect(format!("unable to delete {:?}", id5.file_path().display()).as_str());
+    match NamedFile::open(id3.file_path()).await {
+      Ok(file) => Ok(file),
+      Err(e) => Err(e),
+      } 
+}
+
+fn check_gdrive(url: &str) -> bool {
+   match Url::parse(url) {
+      Ok(parsed_url) => {
+          let host = parsed_url.host_str();
+	  host == Some("drive.google.com")
+	  },
+	  Err(_) => false
+      }
+}
+
+fn sanitise_filename(file: &std::path::Path) -> bool {
+   let checkfile = file;
+   if checkfile.is_file() {
+     return true;
+     }
+   else {
+     return false;
+     }
+}
+
+pub fn is_filetype(entry: &DirEntry, _type: &str) -> bool {
+    entry
+        .file_name()
+        .to_str()
+        .map_or(false, |s| s.to_lowercase().ends_with(_type))
+}
+
+async fn extract_tar_gz(path: &Path) -> Result<(), std::io::Error> {
+    let file = File::open(path).await?;
+    let bufreader = BufReader::new(file);
+    //println!("I've done the bufreader");
+    let gzdecoder = GzipDecoder::new(bufreader);
+    println!("I've done the gzdecoder");
+    let mut archive = Archive::new(gzdecoder);
+    //println!("I've done a new archive out of the gzdecoder which seems a bit odd");
+    archive.unpack(std::path::Path::new("ExampleFolder")).await?;
+    //println!("i've awaited the archive unpack");
+    Ok(())
+}
+
+async fn extract_tar(path: &Path) -> Result<(), std::io::Error> {
+    let file = File::open(path).await?;
+    let buf_reader = BufReader::new(file);
+    let mut archive = Archive::new(buf_reader);
+    archive.unpack(".").await?;
+    Ok(())
+}
+
+#[pyfunction]
+pub fn gdown(py: Python, url: &str) -> PyResult<()> {
+     println!("in the gdown, url is {:?}", &url);
+     let checkedfolder = check_gdrive(url);
+     match checkedfolder {
+	false => println!("google drive link not accepted"),
+	true => py_run!(py, url, r#"
+import gdown
+print("url", url)
+url_to_use = url
+#gdown.download_folder(url_to_use, use_cookies=False, remaining_ok=True)"#),
+        }
+     Ok(())
+}
+
+
+async fn search_for_files(directory: &Path) -> Result<PathBuf, std::io::Error> {
+     let mut answer = PathBuf::new();
+     println!("in search for files looking into {:?}", &directory);
+     for entry in WalkDir::new(directory).into_iter().filter_map(Result::ok) {
+        let path = entry.path();
+	if path.is_file() {
+	   println!("this is a file {:?}", &path);
+	   if let Some(extension) = path.extension() {
+	      match extension.to_str() {
+	         Some("faa") => {
+	         //Some("fna") | Some("fas") | Some("fasta") => {
+		     println!("found protein fasta file type in {:?}", path);
+		     answer = path.to_path_buf();
+		     answer = Path::new(answer.parent().unwrap()).to_path_buf();
+		     break;
+		     }
+		 _ => (),
+		 }
+	    }
+	 }
+    }
+    Ok(answer)
+}
+
+
+async fn extractfiles(dir: &Path) -> Result<PathBuf, std::io::Error> {
+    let target_directory = dir;
+    let mut answerpath = PathBuf::new();
+    let temp_extract_dir = Path::new("/Users/lisacrossman/PJI_rust/PJI_rust/ExampleFolder");
+    for item in WalkDir::new(target_directory).into_iter().filter_map(Result::ok) {
+       let path = item.path();
+       if path.is_file() {
+          if let Some(extension) = path.extension() {
+	      match extension.to_str() {
+	         Some("gz") => {
+		    if let Some(parent_extension) = path.file_stem().and_then(|s| Path::new(s).extension()) {
+		        if parent_extension == "tar" {
+			   println!("tar.gz file is {:?}", path);
+			   extract_tar_gz(path).await?;
+			   println!("hello I've awaited the extract tar gz");
+			   let search_path = Path::new(path).parent().unwrap();
+			   answerpath = search_for_files(Path::new(&search_path)).await?.to_path_buf();
+			   println!("heloo I've awaited the answerpath");
+			   println!("and the answerpath was {:?}", &answerpath);
+			}
+	            }
+		 }
+		 Some("tar") => {
+		    println!("found a .tar file {:?}", path);
+		    extract_tar(path).await?;
+		    answerpath = search_for_files(temp_extract_dir).await?.to_path_buf();
+		    }
+		 _ => {}
+	       }
+	     }
+	   }
+       }
+     Ok(answerpath)
+}
+
+
+pub async fn shred(file: String, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+   //let files: Vec<String> = args.filename.split(',').map(|f| f.to_string()).collect();
+      let outfname = format!("ExampleColiJejuni/{}_20.proc", &file);
+      let mut writes = File::create(&outfname).await.expect("opening creating write file");
+      let mut writer = BufWriter::new(writes);
+      //let example_path = path; //std::path::Path::new("ExampleColiJejuni/");
+      let mut source_file_name = path.join(std::path::Path::new(&file));
+      println!("looking for this file {:?}" ,&source_file_name);
+      let reader = Reader::new(std::fs::File::open(source_file_name).expect("error opening file"));
+      let mut word_vec: Vec<String> = Vec::new();
+      for result in reader.records() {
+           let record = result.expect("error during fasta record parsing");
+           let seq = String::from_utf8_lossy(record.seq());
+           for word in seq.chars().collect::<Vec<char>>().chunks(20) {
+               let mut word: String = word.into_iter().collect();
+               if let Some('*') = word.chars().last() {
+                  word.pop();
+                  }
+               if word.len() < 20 { 
+                  println!("lesser word {:?}", word); 
+                  }
+	       else if word.contains('*') {
+	          word.pop();
+		  }
+	       else { 
+                  word_vec.push(word);
+                  }
+               }
+           }
+           for wor in &word_vec {
+              //write!(writer, "{} ", wor).unwrap();
+              //writer.flush();
+	      writer.write_all(format!("{} ", wor).as_bytes()).await?;
+              }
+	   writer.flush().await?;
+   Ok(())
+}
+
+#[rocket::post("/machine_learning", data = "<MLBiomarkers>")]
+//async fn machine_learning(mut MLBiomarkers: Form<MLBiomarkers<'_>>) -> Result<(), std::io::Error> {
+async fn machine_learning(MLBiomarkers: Form<MLBiomarkers>) -> Result<Template, ErrorResponse> { //-> Result<NamedFile, std::io::Error> {
+    //let loading = block_on(loading());
+    //match loading {
+    //   Ok(loads) => Ok(loads),
+    //   Err(_) => Err(ErrorResponse::A(format!("problem showing the loading template"))),
+    //   };
+    let token = &MLBiomarkers.recaptcha;
+    let verify_token = verify_recaptcha(token.to_string());
+    //let mut result_labels: Vec<String> = Vec::new();
+    //println!("this is the verify token {:?}", &verify_token.await.unwrap());
+    let fofns_unsafe: Vec<&str> = MLBiomarkers.fofn_names.split(',').collect();
+    println!("fofns unsafe are {:?}", &fofns_unsafe);
+    let gdriveurl_unsafe: &String = &MLBiomarkers.gdrive_url;
+    let mut cleanfofns: Vec<&str> = Vec::new();
+    for fofn in fofns_unsafe {
+        cleanfofns.push(FileName::as_str(fofn.into()).as_ref().unwrap());
+	}
+    let category: Vec<&str> = MLBiomarkers.categories.split(',').collect();
+    //for cat in &MLBiomarkers.categories {
+    //    category.push(Some(cat.as_str()));
+    //	}
+    println!("clean fofns are {:?}", &cleanfofns);
+    let inputfofns: Vec<String> = cleanfofns.iter().map(|c| format!("{}.fofn", c.to_string())).collect();
+    println!("now inputfofns are {:?}", &inputfofns);
+    let labels: Vec<String> = category.iter().map(|l| l.to_string()).collect(); //categories
+    println!("inputfofns are {:?}, labels are {:?}", &inputfofns, &labels);
+    let _ = Python::with_gil(|py| {
+         gdown(py, &gdriveurl_unsafe)});
+    println!("back from the gdown");
+    let mut k2 = [0u8; 32];
+    OsRng.fill_bytes(&mut k2);
+    println!("assigned k2 to {:?}", &k2);
+    let mut nonHash: HashMap<String, Vec<u8>> = HashMap::new();
+    let mut oldnew: HashMap<String, String> = HashMap::new();
+    //search for a tar file in the download and if there is one, is it gz and if so ungz and untar and delete the original tar file
+    let answerpath = extractfiles(std::path::Path::new("ExampleFolder/")).await.unwrap();
+    //search for an internal dir by searching for the files? and if so find the path of them
+    //let fofnold: HashMap<String, String> = HashMap::new();
+    if let Ok(mut entries) = fs::read_dir(&answerpath).await {  //change the folder name 
+       while let Ok(Some(entry)) = entries.next_entry().await {
+           println!("so entry is {:?}", &entry.file_name());
+	   let sanitised_filename = sanitise_filename(&entry.path());
+	   println!("sanitised file name is {:?}", &sanitised_filename);
+	   if sanitised_filename {
+	         if is_filetype(&entry, ".fofn") {
+	              println!("innonce is fofn");
+	              let mut nonce = [0u8; 7];
+                      OsRng.fill_bytes(&mut nonce);
+	              let id = PasteId::new(ID_LENGTH);
+	              let entclone = entry.file_name().clone();
+		      let example_path = std::path::Path::new("ExampleColiJejuni/");
+		      let orig_name_name = &answerpath.join(std::path::Path::new(&entry.file_name()));
+		      //println!("orig_name_name is {:?}", &orig_name_name);
+		      let mut source_file_name = example_path.join(std::path::Path::new(&entclone));
+		      tokio::fs::copy(orig_name_name, source_file_name.clone()).await.unwrap();
+		      println!("fofn source file name is {:?}", &source_file_name);
+	              oldnew.insert(entry.file_name().into_string().expect("not into string"), id.file_path().into_os_string().into_string().expect("not into string"));
+	              //newold.insert((&id.file_path().display()).to_string(), (&entry.file_name()).into_string().expect("not into string"));
+	              nonHash.insert((&id.file_path().display()).to_string(), nonce.to_vec());
+	              //encrypt_large_file((&entry.file_name()).into(), id.file_path(), k2, nonce).await.expect("issue with function");
+		      encrypt_large_file(source_file_name.to_path_buf(), id.file_path(), k2, nonce).await.expect("issue with encrypt fofn");
+		      }
+		 else {
+	            //println!("sanitised");
+	            //println!("innonce");
+	            let mut nonce = [0u8; 7];
+                    OsRng.fill_bytes(&mut nonce);
+	            let id = PasteId::new(ID_LENGTH);
+	            match shred(entry.file_name().into_string().expect("not into string"), &answerpath).await {
+		       Ok(_) => println!("shred successful"),
+		       Err(err) => println!("shred not carried out as {}", err),
+		       }
+		    let newentryfilename = format!("{}_20.proc", entry.file_name().into_string().expect("not into string"));
+                    let mut source_file_name = &answerpath.join(std::path::Path::new(&newentryfilename));
+	            //oldnew.insert(entry.file_name().into_string().expect("not into string"), id.file_path().into_os_string().into_string().expect("not into string"));
+		    oldnew.insert(newentryfilename.clone(), id.file_path().into_os_string().into_string().expect("not into string"));
+	            //newold.insert((&id.file_path().display()).to_string(), (&entry.file_name()).into_string().expect("not into string"));
+	            nonHash.insert((&id.file_path().display()).to_string(), nonce.to_vec());
+	            //encrypt_large_file((&entry.file_name()).into(), id.file_path(), k2, nonce).await.expect("issue with function");
+		    //encrypt_large_file((newentryfilename).into(), id.file_path(), k2, nonce).await.expect("issue with function");
+		    encrypt_large_file(source_file_name.to_path_buf(), id.file_path(), k2, nonce).await.expect("issue with large encrypt function");
+		    }
+	      }
+	  }
+	  }
+    let answer = pji(inputfofns, labels, oldnew, nonHash, &k2);
+    //println!("yes so answer is {:?}", answer);
+    match answer {
+       Ok(tup) =>  {
+		     //let fileid = format!("{}_majority_vote_tree.svg", tup);
+		     //println!("therefore the fileid I'm looking for is {}_majority_vote_tree.svg", tup);
+		     let finalresults = results(tup).await;
+		     println!("therefore finalresults is {:?}", &finalresults);
+		     match finalresults {
+			    Ok(value) => Ok(value),
+			    Err(_) => {
+		              Err(ErrorResponse::A(format!("problem opening the results file")))
+                              }
+			      }
+		   }
+       Err(_) => return Err(ErrorResponse::A(format!("Please check you have included your .fofn files with labels in the google drive directory and try again!"))),
+       }
+}
+
+#[launch]
+async fn rocket() -> _ {
+    let rocket = rocket::build()
+       .attach(CORS)
+       .attach(Template::fairing())
+       .mount("/", routes![toplevel, nextlevel, serve, retrieve, results,upload, route_example, verify_recaptcha, machine_learning, servefiles, serveresults])
+       .register("/", catchers!(rocket_governor_catcher));
+    rocket
+}

@@ -1,0 +1,124 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="keywords" content="genome, sequence, PCR, in silico, software">
+<meta name="description" content="Machine Learning Biomarker software.">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Machine Learning Biomarkers - a program to identify potential biomarkers on genome sequences with reference to categories</title>
+
+<!--<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/light.css">-->
+<link rel="stylesheet" href="water.min.css">
+<link rel="stylesheet" href="loadstyle.css">
+<link rel="shortcut icon" href="favicon.ico">
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+<style>
+.button-container {
+    display: inline-flex;
+    gap: 10px; /* Adjust the gap as needed */
+}
+</style>
+<script type="text/javascript">
+  function onSubmit(token) {
+      alert("callback ready!");
+      document.getElementById('recaptchaResponse').value = token;
+      }
+</script>
+</head>
+<!--
+<body id="bv" onload="showtw();">
+-->
+<body id="bv">
+<div class="tg">
+<div class="title">
+ML biomarkers  
+</div>
+<h1>ML Biomarker Search:<br> Online machine learning biomarker identification tool from protein sequences</h1>
+</div>
+<div id="mv">
+<!--
+</div>
+<div style="font-size:100%" >
+<span class="redc00">
+</span>
+If you have problems with this service please feel free to raise an issue on GitHub
+</span>
+<span class="redc00"></span>
+</div>
+-->
+<h2>About</h2>
+  ML Biomarker Search
+is a program for unix-like operating systems.  <br>It is a computational tool used to train a machine learning model through ensemble methods on decision trees</br>
+The latest version is 0.1 (2024/Feb).
+Downloading from Google Drive to this service uses OAuth 2.0 Secure Authentication Protocol.  Https is used to communicate with Google Drive servers which helps ensure security of data transmission during the download process.
+<!--
+<span class="new">New!</span>&nbsp; (2023/Nov/08)
+-->
+<h2>Notes on Usage</h2>
+The number of categories and files are important for success, more categories and longer genomes could mean more files are required for better success in determining results.
+<p>
+<h3>Input Format<sup>*</sup></h3>
+<p>
+  1. List of filenames (.fofn) in text format, a list of fofn filenames for each category separated by commas.&nbsp;
+  You'll need one .fofn for each of your categories to test separated by commas, e.g. for four categories: proc1.fofn,proc2.fofn,proc3.fofn,proc4.fofn&nbsp;<br>
+<br><br>
+  2. A google drive folder url containing both the full .fofn files, text files one for each category containing a list of filenames of the proteins fasta one per line.  Example .fofn file <a href="example.fofn">example (example.fofn)</a><br>The rest of the input files should be of protein fasta (.faa) one file for each genome sequence for testing, see <a href="example_protein.faa">protein fasta (example.faa)</a></br>
+<br><br>
+  3. A short list in text format of the categories required separated by commas e.g. 1,2,3,4
+</blockquote>
+<h3>Usage:</h3>
+
+<form action="/machine_learning" id="seqform" enctype="multipart/form-data" method="post"><fieldset style="width:750px;"><legend>Input Parameters:</legend>
+    <label for="fofn_names">List of text file .fofn file of filenames one for each category, e.g. 1.fofn,2.fofn,3.fofn,4.fofn<br>
+      <input type="text" name="fofn_names", value="1.fofn,2.fofn,3.fofn,4.fofn", style="width: 350px"></label>
+<br>
+<label for="google drive url">Please Provide your shared google drive folder URL here, the drive folder should only contain your protein fasta .faa files and your fofn text files for each category, so for 4 categories, 4 .fofn.  Make sure your specific google drive folder is set to 'Anyone with the link can view' and copy the link here:<br>
+<input type="text" name="gdrive_url", value="https://drive.google.com/drive/folders/1CHOsUT0HBC3c-e9lAyY0b8HFfOWTq4Kw?usp=sharing", style="width: 750px">
+</select></label>
+<br>
+<label for="categories">Categories to test as a list separated by commas e.g. 1,2,3,4<br>
+<input type="text" name="categories", value="1,2,3,4", style="width: 100px"></label>
+<br>
+</fieldset>
+<div class="button-container">
+    <input type="submit" id="btn" name="btn" value="Submit">
+    <button type="button">Demo Run</button>
+</div>
+<div class="g-recaptcha" data-sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI" data-callback="onSubmit"></div>
+<input type="hidden" id="recaptchaResponse" name="recaptcha">
+<div id="loading" class="loader" style="height: 100px; width: 275px; display:none">
+<b>Processing...</b><br>
+  <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div> 
+</div>
+    </form>
+  
+This site is protected by reCAPTCHA and the Google
+    <a href="https://policies.google.com/privacy">Privacy Policy</a> and
+    <a href="https://policies.google.com/terms">Terms of Service</a> apply.
+Uploaded Files are encrypted and deleted as soon as processed.  Your results are returned as an example decision tree, and a sorted list of features of importance
+
+<h3>Usage of command line program:</h3>
+<pre>
+% <b>ML biomarkers</b><b><i> [options] --f_list [list of .fofn for each category separated by commas] -u [Google Drive sharing link] -c [category list separated by commas]</i></b>
+</pre>
+<a href="https://github.com/LCrossman"><sup>*</sup>GitHub site for questions, issues & comments</a>
+<div id="consent-popup" class="hidden">
+  <p> Google places cookies on this website for the Captcha.
+    Please <a id="accept" href="#"> Accept</a> these before using the site or email to request an alternative</p></div>
+
+
+&#169; 2023 L. Crossman
+</div>
+</ul>
+</div>
+<script>
+  document.getElementById('seqform').addEventListener('submit', function(e) {
+    e.preventDefault();
+    document.getElementById('loading').style.display = 'flex';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/machine_learning', true);
+    xhr.send(new FormData(this));
+});
+</script>
+</body>
+</html>

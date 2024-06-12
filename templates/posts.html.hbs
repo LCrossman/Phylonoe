@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Personal Blog</title>
+  <link rel="stylesheet" href="static/css/style.css" type="text/css">
+</head>
+<body>
+   <b>Results of your run</b>
+   <section class="posts">
+    {{#each posts}}
+      <article class="post">
+       <h3>{{this.title}}</h3>
+       <img src="{{this.image_path}}" alt="{{this.alt}}" />
+       </article>
+    {{/each}}
+ </section>
+</body>
+</html>

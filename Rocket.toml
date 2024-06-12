@@ -1,0 +1,8 @@
+[default.limits]
+"data-form" = "6 MiB"
+"file" = "6 MiB"
+"file/fna" = "6 MiB"
+"file/fasta" = "6 MiB"
+"file/fas" = "6 MiB"
+[default]
+template_dir = "templates"
